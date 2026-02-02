@@ -6,7 +6,9 @@
       "Bash(if exist audit_trail.db del audit_trail.db)",
       "Bash(python seed_data.py:*)",
       "Bash(python -m uvicorn:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "WebFetch(domain:www.linkedin.com)",
+      "WebFetch(domain:data-girl-s-portfolio.vercel.app)"
     ]
   }
 }
