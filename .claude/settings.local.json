@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(python -c:*)",
+      "Bash(if exist audit_trail.db del audit_trail.db)",
+      "Bash(python seed_data.py:*)",
+      "Bash(python -m uvicorn:*)",
+      "Bash(curl:*)"
+    ]
+  }
+}
