@@ -12,7 +12,13 @@
       "Bash(timeout:*)",
       "Bash(netstat:*)",
       "Bash(findstr:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(powershell:*)",
+      "Bash(where:*)",
+      "Bash(ffmpeg:*)",
+      "Bash(powershell.exe -NoProfile -Command \"[Environment]::GetEnvironmentVariable\\(''Path'',''Machine''\\) -split '';'' | Where-Object { $_-like ''*ffmpeg*'' }\")",
+      "Bash(cmd.exe:*)",
+      "Bash(\"C:\\\\Users\\\\shiva\\\\AppData\\\\Local\\\\Microsoft\\\\WinGet\\\\Packages\\\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\\\ffmpeg-8.0.1-full_build\\\\bin\\\\ffmpeg.exe\" -i \"c:\\\\Users\\\\shiva\\\\OneDrive\\\\Documents\\\\Github\\\\Responsible-AI-Governance-System\\\\Live Demo.mkv\" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 128k -movflags +faststart \"c:\\\\Users\\\\shiva\\\\OneDrive\\\\Documents\\\\Github\\\\Responsible-AI-Governance-System\\\\Live Demo.mp4\" -y)"
     ]
   }
 }

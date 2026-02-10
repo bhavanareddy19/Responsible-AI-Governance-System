@@ -35,6 +35,10 @@
 
 <br>
 
+### Live Demo
+
+<video src="Live Demo.mp4" width="100%" controls autoplay muted loop></video>
+
 </div>
 
 ---
@@ -391,6 +395,302 @@ This project covers skills across multiple data & AI roles:
 
 ### Data Analyst
 `Pandas` `NumPy` `Statistical Metrics` `Data Visualization (Recharts)` `Dashboard Design` `KPI Tracking` `Demographic Analysis` `Fairness Reporting` `Compliance Reporting`
+
+---
+
+## Backend Deep Dive
+
+### 1 The AI Model (`ml/models/healthcare_model.py`)
+
+This is a PyTorch neural network called `HealthcareRiskModel`.
+
+**What it does:**
+Takes 46 patient features as input and outputs a risk score between 0 and 1.
+
+**Architecture:**
+
+```
+Input Layer:  46 features (patient data)
+    |
+Hidden Layer 1:  256 neurons + BatchNorm + ReLU + Dropout(0.3)
+    |
+Hidden Layer 2:  128 neurons + BatchNorm + ReLU + Dropout(0.3)
+    |
+Hidden Layer 3:   64 neurons + BatchNorm + ReLU + Dropout(0.3)
+    |
+Output Layer:  1 neuron + Sigmoid activation
+    |
+Output: Risk score (0.0 to 1.0)
+```
+
+**What each component does:**
+- **BatchNorm** -- normalizes the data between layers for stable training
+- **ReLU** -- activation function that introduces non-linearity
+- **Dropout(0.3)** -- randomly turns off 30% of neurons during training to prevent overfitting
+- **Sigmoid** -- squashes the output to a 0-1 range (probability)
+
+**The 46 input features are grouped into:**
+
+| Group           | Count | Examples                                         |
+|-----------------|-------|--------------------------------------------------|
+| Vitals          | 7     | systolic_bp, heart_rate, temperature, oxygen     |
+| Lab Results     | 20    | hemoglobin, creatinine, glucose, sodium          |
+| Demographics    | 4     | age, gender_male, gender_female, bmi             |
+| Medical History | 15    | diabetes, hypertension, heart_disease, icu_history |
+
+**Risk level mapping:**
+- Score >= 0.7  -->  HIGH risk
+- Score 0.4-0.7 -->  MODERATE risk
+- Score < 0.4  -->  LOW risk
+
+**Total model parameters: ~54,000** (trainable weights)
+
+---
+
+### 2 SHAP Explainability (`explainability/shap_explainer.py`)
+
+**Purpose:** Answer the question "WHY did the model predict this?"
+
+**How it works:**
+
+SHAP (SHapley Additive exPlanations) comes from game theory. It measures how
+much each feature "contributed" to the final prediction. Think of it like:
+
+```
+Base prediction (average risk):     50%
+  + Age is 78:                      +12%
+  + Diabetes = Yes:                 +8%
+  + Creatinine is high:             +5%
+  - Heart rate is normal:           -3%
+  - Oxygen is good:                 -2%
+  ___________________________________
+  Final prediction:                 70% (HIGH risk)
+```
+
+Each feature gets a positive or negative contribution score.
+
+**Two methods implemented:**
+
+1. **SHAP KernelExplainer** -- The standard, more accurate method.
+   Uses background data samples to compute Shapley values.
+
+2. **Gradient-based fallback** -- Faster alternative.
+   Uses PyTorch autograd to compute how sensitive the output is to each input.
+   Used when SHAP library is unavailable or fails.
+
+**Clinical Rationale Generator:**
+
+After computing SHAP values, the system translates them into doctor-friendly
+language. For example:
+
+```
+Input:  creatinine = 2.3, SHAP contribution = +0.08
+Output: "Renal function assessment recommended"
+
+Input:  systolic_bp = 165, SHAP contribution = +0.12
+Output: "Blood pressure management review recommended"
+
+Input:  previous_admissions_30d = 2
+Output: "Review discharge planning and follow-up care"
+```
+
+This is what the resume means by "explainable AI module providing clinical
+decision rationale" and "SHAP-based interpretability."
+
+---
+
+### 3 Bias Detection (`governance/bias_detector.py`)
+
+**Purpose:** Check if the AI model treats all demographic groups fairly.
+
+**Four fairness metrics are calculated:**
+
+```
+METRIC 1: DEMOGRAPHIC PARITY
+  Question: Does the model predict "high risk" at the same rate
+            for men and women?
+  Formula:  P(predicted_positive | male) = P(predicted_positive | female)
+  Fair if:  Difference < 10%
+
+METRIC 2: EQUALIZED ODDS
+  Question: Among patients who ARE actually sick, does the model
+            catch them equally regardless of gender?
+  Measures: True Positive Rate difference AND False Positive Rate difference
+  Fair if:  Both differences < 10%
+
+METRIC 3: DISPARATE IMPACT
+  Question: Is the selection rate for any group at least 80% of the
+            highest group? (This is a LEGAL requirement - the "4/5ths rule")
+  Formula:  min_group_rate / max_group_rate >= 0.8
+  Fair if:  Ratio between 0.8 and 1.25
+
+METRIC 4: PREDICTIVE PARITY
+  Question: When the model says "high risk," is it equally accurate
+            for all groups?
+  Measures: Precision (positive predictive value) per group
+  Fair if:  Precision difference < 10%
+```
+
+**Protected attributes analyzed:**
+- Gender (Male vs Female)
+- Age Group (18-40, 41-60, 61-80, 80+)
+
+**Fairness Scorecard:**
+All metrics are combined into a single score from 0 to 100.
+- Demographic Parity contributes 30%
+- Equalized Odds contributes 30%
+- Calibration contributes 20%
+- Individual Fairness contributes 20%
+
+---
+
+### 4 Advanced Fairness (`governance/fairness_metrics.py`)
+
+This module adds two more sophisticated fairness measures:
+
+**Individual Fairness:**
+- Uses K-Nearest Neighbors (KNN) to find similar patients
+- Checks if similar patients get similar predictions
+- "If two patients have almost identical health data, they should get
+  almost identical risk scores, regardless of their demographic group"
+
+**Counterfactual Fairness:**
+- Takes a patient's data, flips their gender (male -> female or vice versa)
+- Runs prediction again
+- If the prediction changes significantly, the model is unfair
+- "Changing ONLY the gender should NOT change the risk prediction"
+
+---
+
+### 5 Compliance Checker (`governance/compliance_checker.py`)
+
+**Purpose:** Verify the system follows healthcare regulations.
+
+**8 compliance checks across 2 standards:**
+
+```
+HIPAA (Health Insurance Portability and Accountability Act):
+  Check 1: Data Encryption     -- Is patient data encrypted?
+  Check 2: Access Controls     -- Is role-based access control enabled?
+  Check 3: Audit Logging       -- Is every data access being logged?
+  Check 4: Data Retention      -- Is data kept for minimum 6 years?
+
+FDA AI/ML Guidance:
+  Check 5: Model Documentation -- Is the model type, version, and
+                                  architecture documented?
+  Check 6: Clinical Validation -- Does the model meet minimum AUC >= 0.7?
+  Check 7: Bias Assessment     -- Has bias testing been completed?
+  Check 8: Explainability      -- Can the model explain its decisions?
+```
+
+**Risk categories based on failures:**
+- All pass = LOW risk
+- 1-3 failures = MEDIUM risk
+- 4+ failures = HIGH risk
+- Critical check failure (encryption, audit, or validation) = CRITICAL risk
+
+---
+
+### 6 Audit Logger (`governance/audit_logger.py`)
+
+**Purpose:** Create a tamper-proof record of everything the system does.
+
+**How the hash chain works (same concept as blockchain):**
+
+```
+Event 1:
+  Data: "Patient prediction, risk=0.73"
+  Hash: SHA256("GENESIS" + event_data) = "abc123..."
+
+Event 2:
+  Data: "Patient prediction, risk=0.45"
+  Hash: SHA256("abc123..." + event_data) = "def456..."
+
+Event 3:
+  Data: "Bias check completed"
+  Hash: SHA256("def456..." + event_data) = "ghi789..."
+```
+
+Each event's hash includes the PREVIOUS event's hash. So if someone tries
+to modify Event 2, its hash changes, which breaks Event 3's hash, and
+every event after it. This makes tampering detectable.
+
+**Event types logged:**
+- PREDICTION -- every patient risk prediction
+- MODEL_LOAD -- when the model starts up
+- MODEL_UPDATE -- when the model is retrained
+- BIAS_CHECK -- when bias analysis runs
+- COMPLIANCE_CHECK -- when compliance is verified
+- DATA_ACCESS -- when patient data is accessed
+- SYSTEM_EVENT -- startup, shutdown, errors
+- ALERT -- when thresholds are breached
+
+**Each event stores:**
+- Event ID (unique identifier)
+- Timestamp
+- Event type and action description
+- Model version
+- Input data hash (SHA-256 of the patient data)
+- Output data hash (SHA-256 of the prediction)
+- Previous hash (link to prior event)
+- Signature (hash of the complete chain)
+
+**Retention: 7 years (2555 days)** -- exceeds HIPAA's 6-year minimum.
+
+---
+
+### 7 Monitoring (`monitoring/__init__.py`)
+
+**Purpose:** Track system performance in real time.
+
+**Metrics tracked:**
+- Total predictions count
+- Average latency (milliseconds per prediction)
+- P95 latency (95th percentile -- worst-case speed)
+- Error rate (percentage of failed predictions)
+- High risk rate (percentage of predictions that are HIGH)
+- Risk distribution (% low, moderate, high)
+
+**How it works:**
+- Uses a 1-hour rolling window
+- Thread-safe with locks (can handle concurrent requests)
+- Automatically cleans up data older than 1 hour
+
+---
+
+### 8 Training Pipeline (`ml/training/training_pipeline.py`)
+
+**Purpose:** Train the neural network on patient data.
+
+**Training process:**
+```
+Step 1: Split data into 80% training, 20% validation
+Step 2: Feed training data in batches of 64
+Step 3: For each batch:
+         - Forward pass (compute prediction)
+         - Calculate loss (BCELoss - Binary Cross Entropy)
+         - Backward pass (compute gradients)
+         - Clip gradients (max norm = 1.0, prevents exploding gradients)
+         - Update weights (Adam optimizer)
+Step 4: After each epoch, validate on the 20% held-out data
+Step 5: If validation loss improves, save model state
+Step 6: If validation loss does not improve for 10 epochs, STOP (early stopping)
+Step 7: Reduce learning rate by 50% if stuck for 5 epochs
+Step 8: Restore the best model state
+```
+
+**Metrics reported per epoch:**
+- Training loss and accuracy
+- Validation loss, accuracy, AUC, precision, recall, F1 score
+- Current learning rate
+
+**DataGenerator class:**
+Generates synthetic (fake but realistic) patient data for testing:
+- Blood pressure: Normal distribution, mean=120, std=20
+- Age: Normal distribution, mean=55, std=18
+- Diabetes probability: 15%
+- Hypertension probability: 30%
+- Heart disease probability: 12%
 
 ---
 
