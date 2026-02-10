@@ -37,7 +37,7 @@
 
 ### Live Demo
 
-<video src="Live Demo.mp4" width="100%" controls autoplay muted loop></video>
+![Live Demo](live_demo.gif)
 
 </div>
 
