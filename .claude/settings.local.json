@@ -8,7 +8,11 @@
       "Bash(python -m uvicorn:*)",
       "Bash(curl:*)",
       "WebFetch(domain:www.linkedin.com)",
-      "WebFetch(domain:data-girl-s-portfolio.vercel.app)"
+      "WebFetch(domain:data-girl-s-portfolio.vercel.app)",
+      "Bash(timeout:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(tasklist:*)"
     ]
   }
 }
